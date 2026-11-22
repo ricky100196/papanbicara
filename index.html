@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Papan Bicara — papan komunikasi bergambar berbasis browser untuk AAC" />
+  <title>Papan Bicara</title>
+  <style>
+    /* ── Reset & base ─────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --clr-bg:        #f4f6f9;
+      --clr-surface:   #ffffff;
+      --clr-primary:   #1a56db;
+      --clr-primary-d: #1343b0;
+      --clr-danger:    #c0392b;
+      --clr-danger-d:  #9b2d23;
+      --clr-success:   #15803d;
+      --clr-border:    #cbd5e1;
+      --clr-text:      #1e293b;
+      --clr-muted:     #475569;
+      --clr-strip-bg:  #e0e7ff;
+      --radius:        12px;
+      --shadow:        0 2px 8px rgba(0,0,0,.12);
+      --focus-ring:    0 0 0 3px rgba(26,86,219,.5);
+      --card-min:      88px;
+    }
+    html { font-size: 16px; }
+    body {
+      font-family: system-ui, "Segoe UI", sans-serif;
+      background: var(--clr-bg);
+      color: var(--clr-text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Focus visible ──────────────────────────────────── */
+    :focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+    /* ── Header ─────────────────────────────────────────── */
+    header {
+      background: var(--clr-primary);
+      color: #fff;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    header h1 { font-size: 1.25rem; font-weight: 700; letter-spacing: .3px; }
+    .header-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .header-controls select {
+      font-size: .85rem;
+      padding: 4px 8px;
+      border: 1px solid #93c5fd;
+      border-radius: 6px;
+      background: #1e3a8a;
+      color: #fff;
+      max-width: 180px;
+    }
+    .header-controls select option { background: #1e293b; color: #fff; }
+
+    /* ── Sentence strip ─────────────────────────────────── */
+    #strip-wrapper {
+      background: var(--clr-strip-bg);
+      border-bottom: 2px solid var(--clr-primary);
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    #sentence-display {
+      min-height: 48px;
+      font-size: clamp(1.1rem, 3vw, 1.5rem);
+      font-weight: 600;
+      color: var(--clr-text);
+      word-break: break-word;
+      line-height: 1.4;
+    }
+    #sentence-display:empty::before {
+      content: "Ketuk kartu untuk mulai…";
+      color: var(--clr-muted);
+      font-weight: 400;
+      font-size: 1rem;
+    }
+    .strip-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* ── Buttons ─────────────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 8px 14px;
+      font-size: .9rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background .15s, transform .1s;
+      line-height: 1;
+    }
+    .btn:active { transform: scale(.96); }
+    .btn-primary   { background: var(--clr-primary);  color: #fff; }
+    .btn-primary:hover { background: var(--clr-primary-d); }
+    .btn-danger    { background: var(--clr-danger);   color: #fff; }
+    .btn-danger:hover  { background: var(--clr-danger-d); }
+    .btn-neutral   { background: #64748b; color: #fff; }
+    .btn-neutral:hover { background: #475569; }
+    .btn-success   { background: var(--clr-success);  color: #fff; }
+    .btn-success:hover { background: #166534; }
+    .btn-edit-mode {
+      background: #7c3aed; color: #fff;
+    }
+    .btn-edit-mode:hover { background: #6d28d9; }
+    .btn-edit-mode.active { background: #f59e0b; color: #1e293b; }
+    .btn-edit-mode.active:hover { background: #d97706; }
+
+    /* ── Main content ───────────────────────────────────── */
+    main { flex: 1; padding: 12px 10px 24px; }
+
+    /* ── Category section ───────────────────────────────── */
+    .category { margin-bottom: 20px; }
+    .category-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--clr-muted);
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      margin-bottom: 10px;
+      padding-left: 4px;
+      border-left: 4px solid var(--clr-primary);
+      padding-left: 8px;
+    }
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));
+      gap: 10px;
+    }
+
+    /* ── Cards ──────────────────────────────────────────── */
+    .card {
+      background: var(--clr-surface);
+      border: 2px solid var(--clr-border);
+      border-radius: var(--radius);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px 6px;
+      min-height: var(--card-min);
+      cursor: pointer;
+      user-select: none;
+      transition: border-color .15s, box-shadow .15s, background .15s;
+      position: relative;
+      text-align: center;
+    }
+    .card:hover { border-color: var(--clr-primary); box-shadow: var(--shadow); }
+    .card:active { background: #e0e7ff; }
+    .card.pressed { background: #c7d7f9; border-color: var(--clr-primary); }
+    .card-emoji { font-size: 2rem; line-height: 1; }
+    .card-img {
+      width: 56px; height: 56px;
+      object-fit: cover;
+      border-radius: 8px;
+    }
+    .card-label { font-size: .82rem; font-weight: 600; color: var(--clr-text); }
+
+    /* edit-mode delete button */
+    .card-delete {
+      display: none;
+      position: absolute;
+      top: 4px; right: 4px;
+      background: var(--clr-danger);
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      width: 24px; height: 24px;
+      font-size: .9rem;
+      cursor: pointer;
+      line-height: 1;
+      align-items: center;
+      justify-content: center;
+    }
+    body.edit-mode .card-delete { display: flex; }
+    body.edit-mode .card { cursor: default; }
+
+    /* ── Add-card button (edit mode only) ───────────────── */
+    .card-add {
+      display: none;
+      border: 2px dashed var(--clr-primary);
+      background: #eff6ff;
+      color: var(--clr-primary);
+      font-size: 1.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      border-radius: var(--radius);
+      min-height: var(--card-min);
+      transition: background .15s;
+    }
+    .card-add:hover { background: #dbeafe; }
+    .card-add span { font-size: .78rem; font-weight: 600; }
+    body.edit-mode .card-add { display: flex; }
+
+    /* ── Modal ───────────────────────────────────────────── */
+    .modal-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.5);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--clr-surface);
+      border-radius: var(--radius);
+      padding: 20px;
+      width: 100%;
+      max-width: 440px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.2);
+    }
+    .modal h2 { font-size: 1.1rem; margin-bottom: 16px; }
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: .88rem; font-weight: 600; margin-bottom: 4px; }
+    .form-group input, .form-group select {
+      width: 100%;
+      padding: 8px 10px;
+      font-size: .95rem;
+      border: 1.5px solid var(--clr-border);
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+    .form-group input:focus, .form-group select:focus {
+      outline: none;
+      border-color: var(--clr-primary);
+      box-shadow: var(--focus-ring);
+    }
+    .form-group small { display: block; margin-top: 4px; color: var(--clr-muted); font-size: .78rem; }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+
+    /* ── Disclaimer ──────────────────────────────────────── */
+    .disclaimer {
+      text-align: center;
+      font-size: .78rem;
+      color: var(--clr-muted);
+      padding: 12px 16px 16px;
+      border-top: 1px solid var(--clr-border);
+    }
+
+    /* ── Responsive tweaks ───────────────────────────────── */
+    @media (max-width: 400px) {
+      header h1 { font-size: 1rem; }
+      .btn { padding: 7px 10px; font-size: .82rem; }
+      .card-emoji { font-size: 1.7rem; }
+    }
+    @media (min-width: 768px) {
+      :root { --card-min: 100px; }
+      main { padding: 16px 20px 32px; }
+      .card-emoji { font-size: 2.4rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────── -->
+<header>
+  <h1>🗣️ Papan Bicara</h1>
+  <div class="header-controls">
+    <label for="voice-select" style="font-size:.82rem;color:#bfdbfe;">Suara:</label>
+    <select id="voice-select" aria-label="Pilih suara text-to-speech">
+      <option value="">— memuat suara —</option>
+    </select>
+    <button id="btn-edit-mode" class="btn btn-edit-mode" aria-label="Aktifkan mode edit kartu" aria-pressed="false">✏️ Edit</button>
+  </div>
+</header>
+
+<!-- ── Sentence strip ─────────────────────────────────── -->
+<div id="strip-wrapper" role="region" aria-label="Strip kalimat">
+  <div id="sentence-display" aria-live="polite" aria-atomic="false" role="status"></div>
+  <div class="strip-actions">
+    <button id="btn-speak"      class="btn btn-primary"  aria-label="Bacakan kalimat">🔊 Bacakan</button>
+    <button id="btn-del-last"   class="btn btn-neutral"  aria-label="Hapus kata terakhir">⌫ Hapus Terakhir</button>
+    <button id="btn-clear-all"  class="btn btn-danger"   aria-label="Hapus semua kata">🗑️ Hapus Semua</button>
+  </div>
+</div>
+
+<!-- ── Main card area ─────────────────────────────────── -->
+<main id="main-cards" aria-label="Papan kartu komunikasi"></main>
+
+<!-- ── Disclaimer ────────────────────────────────────── -->
+<footer>
+  <p class="disclaimer">⚠️ Alat bantu sederhana, bukan pengganti terapis wicara atau perangkat AAC profesional.</p>
+</footer>
+
+<!-- ── Add-card Modal ─────────────────────────────────── -->
+<div class="modal-overlay" id="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div class="modal">
+    <h2 id="modal-title">Tambah Kartu Baru</h2>
+
+    <div class="form-group">
+      <label for="inp-label">Label (teks yang dibacakan) *</label>
+      <input type="text" id="inp-label" maxlength="40" placeholder="cth. Saya mau minum" required />
+    </div>
+
+    <div class="form-group">
+      <label for="inp-category">Kategori *</label>
+      <select id="inp-category">
+        <option value="Kebutuhan">Kebutuhan</option>
+        <option value="Perasaan">Perasaan</option>
+        <option value="Tubuh">Tubuh</option>
+        <option value="Respon">Respon</option>
+        <option value="Lainnya">Lainnya</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="inp-emoji">Emoji (opsional, kosongkan jika pakai foto)</label>
+      <input type="text" id="inp-emoji" maxlength="4" placeholder="cth. 🍎" />
+    </div>
+
+    <div class="form-group">
+      <label for="inp-photo">Foto (opsional, .jpg/.png/.webp, maks 5 MB)</label>
+      <input type="file" id="inp-photo" accept="image/jpeg,image/png,image/webp" />
+      <small>Foto akan diperkecil otomatis ke 200 × 200 px dan disimpan lokal.</small>
+    </div>
+
+    <div class="modal-actions">
+      <button id="btn-modal-cancel" class="btn btn-neutral" aria-label="Batal tambah kartu">Batal</button>
+      <button id="btn-modal-save"   class="btn btn-success" aria-label="Simpan kartu baru">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════
+   STATE
+══════════════════════════════════════════════════════════ */
+const DEFAULT_CARDS = [
+  // Kebutuhan
+  { id:"d1",  category:"Kebutuhan", label:"Saya lapar",    emoji:"🍽️",  img:null, builtin:true },
+  { id:"d2",  category:"Kebutuhan", label:"Saya haus",     emoji:"💧",  img:null, builtin:true },
+  { id:"d3",  category:"Kebutuhan", label:"Toilet",        emoji:"🚽",  img:null, builtin:true },
+  { id:"d4",  category:"Kebutuhan", label:"Saya mau tidur",emoji:"😴",  img:null, builtin:true },
+  // Perasaan
+  { id:"d5",  category:"Perasaan",  label:"Saya senang",   emoji:"😊",  img:null, builtin:true },
+  { id:"d6",  category:"Perasaan",  label:"Saya sedih",    emoji:"😢",  img:null, builtin:true },
+  { id:"d7",  category:"Perasaan",  label:"Saya takut",    emoji:"😨",  img:null, builtin:true },
+  { id:"d8",  category:"Perasaan",  label:"Saya marah",    emoji:"😡",  img:null, builtin:true },
+  // Tubuh
+  { id:"d9",  category:"Tubuh",     label:"Sakit",         emoji:"🤕",  img:null, builtin:true },
+  { id:"d10", category:"Tubuh",     label:"Pusing",        emoji:"😵",  img:null, builtin:true },
+  { id:"d11", category:"Tubuh",     label:"Dingin",        emoji:"🥶",  img:null, builtin:true },
+  { id:"d12", category:"Tubuh",     label:"Panas",         emoji:"🥵",  img:null, builtin:true },
+  // Respon
+  { id:"d13", category:"Respon",    label:"Ya",            emoji:"✅",  img:null, builtin:true },
+  { id:"d14", category:"Respon",    label:"Tidak",         emoji:"❌",  img:null, builtin:true },
+  { id:"d15", category:"Respon",    label:"Tolong",        emoji:"🙏",  img:null, builtin:true },
+  { id:"d16", category:"Respon",    label:"Terima kasih",  emoji:"🤝",  img:null, builtin:true },
+];
+
+const CATEGORIES = ["Kebutuhan","Perasaan","Tubuh","Respon","Lainnya"];
+
+let userCards   = [];   // kartu dari localStorage
+let sentence    = [];   // kata-kata di strip
+let editMode    = false;
+let selectedVoice = null;
+let lastTap     = 0;    // debounce 400 ms
+
+/* ═══════════════════════════════════════════════════════
+   LOCAL STORAGE
+══════════════════════════════════════════════════════════ */
+function loadUserCards() {
+  try {
+    const raw = localStorage.getItem("papan_bicara_cards");
+    if (raw) userCards = JSON.parse(raw);
+  } catch(e) { userCards = []; }
+}
+function saveUserCards() {
+  localStorage.setItem("papan_bicara_cards", JSON.stringify(userCards));
+}
+
+/* ═══════════════════════════════════════════════════════
+   SPEECH
+══════════════════════════════════════════════════════════ */
+const voiceSelect = document.getElementById("voice-select");
+let voices = [];
+
+function populateVoices() {
+  voices = speechSynthesis.getVoices();
+  if (!voices.length) return;
+
+  voiceSelect.innerHTML = "";
+
+  // Filter & sort: id-ID first, then id-, then all
+  const id_ID  = voices.filter(v => v.lang === "id-ID");
+  const id_any = voices.filter(v => v.lang.startsWith("id") && v.lang !== "id-ID");
+  const rest   = voices.filter(v => !v.lang.startsWith("id"));
+  const sorted = [...id_ID, ...id_any, ...rest];
+
+  sorted.forEach((v, i) => {
+    const opt = document.createElement("option");
+    opt.value = i.toString();
+    const tag = v.lang === "id-ID" ? " 🇮🇩" : "";
+    opt.textContent = `${v.name}${tag}`;
+    voiceSelect.appendChild(opt);
+  });
+
+  // Auto-select first id-ID
+  const preferred = id_ID[0] || id_any[0] || sorted[0];
+  if (preferred) {
+    const idx = sorted.indexOf(preferred);
+    voiceSelect.value = idx.toString();
+    selectedVoice = preferred;
+  }
+
+  voiceSelect.addEventListener("change", () => {
+    const idx = parseInt(voiceSelect.value, 10);
+    selectedVoice = isNaN(idx) ? null : sorted[idx];
+  });
+}
+
+if (typeof speechSynthesis !== "undefined") {
+  speechSynthesis.addEventListener("voiceschanged", populateVoices);
+  populateVoices(); // some browsers fire synchronously
+} else {
+  voiceSelect.innerHTML = "<option>Tidak tersedia</option>";
+}
+
+function speak(text) {
+  if (!text) return;
+  if (typeof speechSynthesis === "undefined") return;
+  speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = "id-ID";
+  if (selectedVoice) utter.voice = selectedVoice;
+  utter.rate  = 0.95;
+  utter.pitch = 1;
+  speechSynthesis.speak(utter);
+}
+
+/* ═══════════════════════════════════════════════════════
+   SENTENCE STRIP
+══════════════════════════════════════════════════════════ */
+const sentenceDisplay = document.getElementById("sentence-display");
+
+function updateStrip() {
+  sentenceDisplay.textContent = sentence.join(" ");
+}
+
+document.getElementById("btn-speak").addEventListener("click", () => {
+  const text = sentence.join(" ");
+  if (text) speak(text);
+});
+
+document.getElementById("btn-del-last").addEventListener("click", () => {
+  if (sentence.length) { sentence.pop(); updateStrip(); }
+});
+
+document.getElementById("btn-clear-all").addEventListener("click", () => {
+  sentence = []; updateStrip();
+});
+
+/* ═══════════════════════════════════════════════════════
+   CARD INTERACTION
+══════════════════════════════════════════════════════════ */
+function handleCardTap(card, el) {
+  if (editMode) return;
+  const now = Date.now();
+  if (now - lastTap < 400) return;   // debounce
+  lastTap = now;
+
+  sentence.push(card.label);
+  updateStrip();
+  speak(card.label);
+
+  // visual feedback
+  el.classList.add("pressed");
+  setTimeout(() => el.classList.remove("pressed"), 300);
+}
+
+/* ═══════════════════════════════════════════════════════
+   RENDER
+══════════════════════════════════════════════════════════ */
+function allCards() {
+  return [...DEFAULT_CARDS, ...userCards];
+}
+
+function renderCards() {
+  const main = document.getElementById("main-cards");
+  main.innerHTML = "";
+
+  const all = allCards();
+
+  // Determine which categories have cards
+  const activeCats = CATEGORIES.filter(cat =>
+    all.some(c => c.category === cat)
+  );
+
+  activeCats.forEach(cat => {
+    const cards = all.filter(c => c.category === cat);
+
+    const section = document.createElement("section");
+    section.className = "category";
+    section.setAttribute("aria-label", `Kategori ${cat}`);
+
+    const title = document.createElement("h2");
+    title.className = "category-title";
+    title.textContent = cat;
+    section.appendChild(title);
+
+    const grid = document.createElement("div");
+    grid.className = "card-grid";
+
+    cards.forEach(card => {
+      const el = document.createElement("div");
+      el.className = "card";
+      el.setAttribute("role", "button");
+      el.setAttribute("tabindex", "0");
+      el.setAttribute("aria-label", card.label);
+      el.dataset.id = card.id;
+
+      // image or emoji
+      if (card.img) {
+        const img = document.createElement("img");
+        img.src = card.img;
+        img.className = "card-img";
+        img.alt = card.label;
+        el.appendChild(img);
+      } else {
+        const em = document.createElement("span");
+        em.className = "card-emoji";
+        em.setAttribute("aria-hidden", "true");
+        em.textContent = card.emoji || "🃏";
+        el.appendChild(em);
+      }
+
+      const lbl = document.createElement("span");
+      lbl.className = "card-label";
+      lbl.textContent = card.label;
+      el.appendChild(lbl);
+
+      // delete button (edit mode)
+      if (!card.builtin) {
+        const del = document.createElement("button");
+        del.className = "card-delete";
+        del.setAttribute("aria-label", `Hapus kartu ${card.label}`);
+        del.textContent = "✕";
+        del.addEventListener("click", (e) => {
+          e.stopPropagation();
+          confirmDeleteCard(card, el);
+        });
+        el.appendChild(del);
+      }
+
+      // tap / keyboard
+      el.addEventListener("click", () => handleCardTap(card, el));
+      el.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          handleCardTap(card, el);
+        }
+      });
+
+      grid.appendChild(el);
+    });
+
+    // Add-card button (edit mode)
+    const addBtn = document.createElement("button");
+    addBtn.className = "card-add";
+    addBtn.setAttribute("aria-label", `Tambah kartu baru di kategori ${cat}`);
+    addBtn.innerHTML = `<span style="font-size:2rem;line-height:1">＋</span><span>Tambah</span>`;
+    addBtn.addEventListener("click", () => openModal(cat));
+    grid.appendChild(addBtn);
+
+    section.appendChild(grid);
+    main.appendChild(section);
+  });
+
+  // If "Lainnya" has no cards yet, show it in edit mode
+  if (editMode && !activeCats.includes("Lainnya")) {
+    const section = document.createElement("section");
+    section.className = "category";
+    section.setAttribute("aria-label", "Kategori Lainnya");
+
+    const title = document.createElement("h2");
+    title.className = "category-title";
+    title.textContent = "Lainnya";
+    section.appendChild(title);
+
+    const grid = document.createElement("div");
+    grid.className = "card-grid";
+
+    const addBtn = document.createElement("button");
+    addBtn.className = "card-add";
+    addBtn.setAttribute("aria-label", "Tambah kartu baru di kategori Lainnya");
+    addBtn.innerHTML = `<span style="font-size:2rem;line-height:1">＋</span><span>Tambah</span>`;
+    addBtn.addEventListener("click", () => openModal("Lainnya"));
+    grid.appendChild(addBtn);
+
+    section.appendChild(grid);
+    main.appendChild(section);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   EDIT MODE
+══════════════════════════════════════════════════════════ */
+const btnEditMode = document.getElementById("btn-edit-mode");
+
+btnEditMode.addEventListener("click", () => {
+  editMode = !editMode;
+  document.body.classList.toggle("edit-mode", editMode);
+  btnEditMode.textContent  = editMode ? "✅ Selesai Edit" : "✏️ Edit";
+  btnEditMode.setAttribute("aria-pressed", editMode.toString());
+  btnEditMode.classList.toggle("active", editMode);
+  renderCards();
+});
+
+/* ═══════════════════════════════════════════════════════
+   DELETE CARD
+══════════════════════════════════════════════════════════ */
+function confirmDeleteCard(card, el) {
+  const confirmed = window.confirm(`Hapus kartu "${card.label}"?`);
+  if (!confirmed) return;
+  userCards = userCards.filter(c => c.id !== card.id);
+  saveUserCards();
+  renderCards();
+}
+
+/* ═══════════════════════════════════════════════════════
+   ADD CARD MODAL
+══════════════════════════════════════════════════════════ */
+const overlay      = document.getElementById("modal-overlay");
+const inpLabel     = document.getElementById("inp-label");
+const inpCategory  = document.getElementById("inp-category");
+const inpEmoji     = document.getElementById("inp-emoji");
+const inpPhoto     = document.getElementById("inp-photo");
+const btnCancel    = document.getElementById("btn-modal-cancel");
+const btnSave      = document.getElementById("btn-modal-save");
+
+let _pendingCategory = "Lainnya";
+
+function openModal(cat) {
+  _pendingCategory = cat || "Lainnya";
+  inpLabel.value    = "";
+  inpEmoji.value    = "";
+  inpPhoto.value    = "";
+  inpCategory.value = _pendingCategory;
+  overlay.classList.add("open");
+  inpLabel.focus();
+}
+
+function closeModal() {
+  overlay.classList.remove("open");
+  btnEditMode.focus();
+}
+
+btnCancel.addEventListener("click", closeModal);
+
+// Close on overlay click
+overlay.addEventListener("click", (e) => {
+  if (e.target === overlay) closeModal();
+});
+
+// Trap focus inside modal
+overlay.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeModal();
+});
+
+// Save
+btnSave.addEventListener("click", () => {
+  const label = inpLabel.value.trim();
+  if (!label) { inpLabel.focus(); inpLabel.style.borderColor="var(--clr-danger)"; return; }
+  inpLabel.style.borderColor = "";
+
+  const file = inpPhoto.files[0];
+
+  if (file) {
+    resizeImage(file, 200, (dataUrl) => {
+      createAndSave(label, inpCategory.value, inpEmoji.value.trim() || null, dataUrl);
+    });
+  } else {
+    createAndSave(label, inpCategory.value, inpEmoji.value.trim() || "🃏", null);
+  }
+});
+
+function createAndSave(label, category, emoji, imgData) {
+  const newCard = {
+    id:       "u" + Date.now() + Math.random().toString(36).slice(2,6),
+    category: category,
+    label:    label,
+    emoji:    emoji,
+    img:      imgData,
+    builtin:  false,
+  };
+  userCards.push(newCard);
+  saveUserCards();
+  closeModal();
+  renderCards();
+}
+
+/* ═══════════════════════════════════════════════════════
+   IMAGE RESIZE
+══════════════════════════════════════════════════════════ */
+function resizeImage(file, maxPx, callback) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const size = Math.min(img.width, img.height);
+      const sx   = (img.width  - size) / 2;
+      const sy   = (img.height - size) / 2;
+
+      const canvas = document.createElement("canvas");
+      canvas.width  = maxPx;
+      canvas.height = maxPx;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, sx, sy, size, size, 0, 0, maxPx, maxPx);
+      callback(canvas.toDataURL("image/jpeg", 0.82));
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+/* ═══════════════════════════════════════════════════════
+   KEYBOARD: global strip shortcuts
+══════════════════════════════════════════════════════════ */
+document.addEventListener("keydown", (e) => {
+  // Spacebar on focused card is handled per-card
+  // F1 = Speak, Delete = del last, Escape = clear
+  if (overlay.classList.contains("open")) return;
+  if (e.key === "F1")     { e.preventDefault(); document.getElementById("btn-speak").click(); }
+  if (e.key === "Delete") { document.getElementById("btn-del-last").click(); }
+});
+
+/* ═══════════════════════════════════════════════════════
+   BOOT
+══════════════════════════════════════════════════════════ */
+loadUserCards();
+renderCards();
+</script>
+</body>
+</html>
